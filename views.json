@@ -10,7 +10,7 @@
       },
       {
         "title": "Category performance",
-        "sql": "select * from category_performance order by store_code,category",
+        "sql": "select store_code,category,period_start::text || ' to ' || period_end::text reporting_window,currency,sales_amount,gross_margin_amount,missing_costs from category_performance order by store_code,category",
         "note": "Missing cost means margin is unknown. Store windows remain separate."
       },
       {

@@ -1,13 +1,37 @@
 [
   {
     "name": "week",
-    "title": "This week",
-    "subtitle": "Retail Assortment for Claude Code: what needs attention, rendered by npm run view",
+    "title": "Weekly assortment review",
+    "subtitle": "Fictional demo until your own reports are imported. Compare like reporting windows and currencies.",
     "sections": [
       {
-        "title": "Needs attention",
-        "note": "TODO(author): point this at the industry's attention view (overdue, stuck, quiet).",
-        "sql": "select 'replace me' as item, 'TODO(author)' as why"
+        "title": "Work needing attention",
+        "sql": "select store_code,kind,item,owner,due_on from assortment_attention order by store_code,kind"
+      },
+      {
+        "title": "Category performance",
+        "sql": "select * from category_performance order by store_code,category",
+        "note": "Missing cost means margin is unknown. Store windows remain separate."
+      },
+      {
+        "title": "Range gaps",
+        "sql": "select store_code,sku,product,issue from assortment_gaps order by store_code,sku"
+      },
+      {
+        "title": "Unit-price evidence review",
+        "sql": "select store_code,sku,rule,finding from assortment_compliance order by store_code,sku",
+        "note": "Evidence completeness checks only. They do not inspect a shelf or certify compliance."
+      }
+    ]
+  },
+  {
+    "name": "space",
+    "title": "Shelf productivity review",
+    "sections": [
+      {
+        "title": "Sales and facings",
+        "sql": "select store_code,sku,product,period_start,period_end,currency,facings,width_mm,sales_per_facing_amount,sales_per_metre_amount from range_performance order by store_code,sku",
+        "note": "Linear width only. This is a review of reported facings, not a physical planogram or an optimisation."
       }
     ]
   }

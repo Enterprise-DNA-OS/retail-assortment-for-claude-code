@@ -1,11 +1,51 @@
 [
   {
-    "name": "example",
-    "title": "TODO(author): the first document this industry must produce",
-    "for_each": "select gen_random_uuid() as id, 'Example' as name",
+    "name": "category-review",
+    "title": "Category review pack",
+    "for_each": "select id,name from stores order by code",
     "file": "name",
     "sections": [
-      { "title": "Details", "sql": "select 'replace me' as item, $1::text as record_id" }
+      {
+        "title": "Store and owner",
+        "sql": "select code,name,cluster,currency,owner,review_due from stores where id=$1",
+        "layout": "record"
+      },
+      {
+        "title": "Latest source",
+        "sql": "select period_start,period_end,currency,source_ref,row_count,actor from latest_reports where store_id=$1",
+        "layout": "record"
+      },
+      {
+        "title": "Product range",
+        "sql": "select sku,product,range_status,units,sales_amount,cost_amount,gross_margin_amount,stock_days,currency from range_performance where store_id=$1 order by sku"
+      },
+      {
+        "title": "Missing and off-range products",
+        "sql": "select sku,product,issue from assortment_gaps where store_id=$1 order by sku"
+      },
+      {
+        "title": "Follow-up",
+        "sql": "select title,owner,due_on,closed_on,resolution from actions where store_id=$1 order by due_on"
+      }
+    ]
+  },
+  {
+    "name": "range-decision",
+    "title": "Range decision record",
+    "for_each": "select d.id,p.name from decisions d join products p on p.id=d.product_id order by d.created_at",
+    "file": "name",
+    "sections": [
+      {
+        "title": "Recommendation and rationale",
+        "sql": "select recommendation,rationale,evidence_ref,actor,created_at from decisions where id=$1",
+        "layout": "record",
+        "note": "A recommendation does not update the store range or send instructions to a store."
+      },
+      {
+        "title": "Frozen evidence",
+        "sql": "select snapshot from decisions where id=$1",
+        "layout": "record"
+      }
     ]
   }
 ]

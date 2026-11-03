@@ -1,0 +1,120 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {getDb,REPO_ROOT} from './lib/db.mjs';
+import {migrate} from './migrate.mjs';
+import {seed} from './seed.mjs';
+import {run,parse,commands,human} from './assortment.mjs';
+import {parseCsv} from './lib/csv.mjs';
+import {page,table} from './lib/render.mjs';
+const temp=fs.mkdtempSync(path.join(os.tmpdir(),'assortment-test-'));
+process.env.DATA_DIR=path.join(temp,'db');process.env.OUTPUT_DIR=temp;
+process.env.DATABASE_URL=process.env.TEST_DATABASE_URL||'';
+if(process.env.TEST_DATABASE_URL&&process.env.TEST_DISPOSABLE!=='YES')throw Error('TEST_DATABASE_URL requires TEST_DISPOSABLE=YES and an empty disposable database');
+const today=new Date().toISOString().slice(0,10);
+const day=n=>new Date(Date.parse(today)+n*86400000).toISOString().slice(0,10);
+const db=await getDb();const used=new Set();let assertions=0;
+const check=(actual,expected)=>{assert.deepEqual(actual,expected);assertions++;};
+const r=async(cmd,...args)=>{used.add(cmd);return run([cmd,...args,'--json'],db);};
+const fails=async(fn,pattern)=>{await assert.rejects(fn,pattern);assertions++;};
+const actor='--actor=Test operator';
+const write=(name,value)=>{const file=path.join(temp,name);fs.writeFileSync(file,value);return file;};
+try{
+ if(process.env.TEST_DATABASE_URL){const tables=await db.query("select tablename from pg_tables where schemaname='public'");assert.equal(tables.length,0,'Test PostgreSQL database must be empty');}
+ check((await migrate(db)).ran.length,1);check((await migrate(db)).ran.length,0);
+ await seed(db);await seed(db);
+ check((await r('stores')).length,2);check((await r('products')).length,5);
+ check((await r('help')).length,Object.keys(commands).length);
+ const perf=await r('range-review','--store=demo-cbd');check(perf.length,4);
+ const coffee=perf.find(x=>x.sku==='COF-250');check(Number(coffee.gross_margin_amount),280);check(Number(coffee.stock_days),3);
+ check(perf.find(x=>x.sku==='TEA-80').gross_margin_amount,null);
+ check((await r('slow-movers','--store=DEMO-CBD')).map(x=>x.sku),['COF-500','TEA-40']);
+ check((await r('slow-movers','--store=DEMO-CBD','--days=150')).length,1);
+ const gap=await r('gaps','--store=DEMO-CBD');check(gap.length,2);assert(gap.some(x=>x.sku==='COF-NEW'));assert(gap.some(x=>x.sku==='TEA-80'));
+ const cat=await r('category-review','--store=DEMO-CBD');check(cat.length,2);check(cat.find(x=>x.category==='Tea').gross_margin_amount,null);
+ const space=await r('space-review','--store=DEMO-CBD');check(Number(space.find(x=>x.sku==='COF-250').sales_per_metre_amount),4375);
+ check((await r('margin-review','--store=DEMO-CBD')).find(x=>x.sku==='TEA-40').margin_percent,null);
+ check((await r('attention','--store=DEMO-CBD')).length,2);
+ check((await r('compliance','--store=DEMO-CBD')).length,4);
+ check((await r('compliance','--store=DEMO-BAY')).length,0);
+ for(const cmd of ['actions','decisions','imports','history'])await r(cmd,'--store=DEMO-CBD');
+ await fails(()=>r('range-review','--store=Harbour Grocery'),/ambiguous.*Candidates:/s);
+ await fails(()=>r('range-review','--store=Unknown store'),/no match.*Candidates:/s);
+ await r('review-store','--store=DEMO-CBD',`--due=${day(7)}`,'--reason=Monday review complete',actor);
+ check((await r('attention','--store=DEMO-CBD')).length,1);
+ await r('record-label','--store=DEMO-CBD','--product=COF-250','--evidence=Fictional photo reference',`--checked=${today}`,actor);
+ check((await r('compliance','--store=DEMO-CBD')).length,3);
+ await fails(()=>r('record-label','--store=DEMO-CBD','--product=COF-250','--evidence=x',`--checked=${day(1)}`,actor),/future/);
+ const decision=(await r('add-decision','--store=DEMO-CBD','--product=COF-500','--recommendation=review','--reason=High cover needs supplier discussion','--evidence=Test review note',actor))[0];
+ check(Number(decision.snapshot.stock_days),100);
+ await r('set-range','--store=DEMO-CBD','--product=cof-500','--status=paused','--reason=Review pending',actor);
+ check((await r('decisions','--store=DEMO-CBD'))[0].snapshot.range_status,'active');
+ await fails(()=>r('add-decision','--store=DEMO-BAY','--product=COF-250','--recommendation=keep','--reason=Test','--evidence=Test',actor),/older than 14/);
+ await fails(()=>r('add-decision','--store=DEMO-CBD','--product=COF-NEW','--recommendation=keep','--reason=Test','--evidence=Test',actor),/No product observation/);
+ const action=(await r('add-action','--store=DEMO-CBD','--title=Review & <check>','--owner=Test operator',`--due=${day(2)}`,actor))[0];
+ await r('close-action',`--action=${action.id.slice(0,12)}`,'--resolution=Evidence checked',actor);
+ await fails(()=>r('close-action',`--action=${action.id}`,'--resolution=Again',actor),/already closed/);
+ await r('log','--store=DEMO-CBD','--text=Operator reviewed range',actor);
+ const s=(await r('add-store','--code=TEST-NZ','--name=Test Store','--cluster=Test','--currency=NZD','--owner=Tester',`--due=${day(7)}`,actor))[0];
+ const product=(await r('add-product','--sku=TEST-X','--name=Fresh test product','--category=Tea',actor))[0];
+ await r('set-range',`--store=${s.id}`,`--product=${product.id}`,'--status=active','--reason=Test',actor);
+ const file=path.join(REPO_ROOT,'examples/dotactiv-product-report.csv');const map=path.join(REPO_ROOT,'examples/dotactiv-map.json');
+ const imp=['dotactiv',`--store=${s.id}`,`--file=${file}`,`--map=${map}`,`--start=${day(-7)}`,`--end=${day(-1)}`,'--currency=NZD','--expected-count=2','--source-ref=Fictional test fixture',actor];
+ check((await r('import',...imp,'--dry-run'))[0].status,'dry-run');check((await r('imports',`--store=${s.id}`)).length,0);
+ check((await r('import',...imp))[0].status,'imported');check((await r('import',...imp))[0].status,'unchanged');
+ check((await r('range-review',`--store=${s.id}`)).map(x=>x.sku),['000123','000124']);
+ check((await r('range-review',`--store=${s.id}`)).find(x=>x.sku==='000124').gross_margin_amount,null);
+ const swap=(args,key,value)=>args.map(x=>x.startsWith(`--${key}=`)?`--${key}=${value}`:x);
+ const changed=write('changed.csv',fs.readFileSync(file,'utf8').replace('200.00','201.00'));
+ await fails(()=>r('import',...swap(imp,'file',changed)),/Conflicting/);
+ await fails(()=>r('import',...swap(imp,'expected-count','3')),/Expected 3/);
+ await fails(()=>r('import',...swap(imp,'currency','AUD')),/Currency differs/);
+ await fails(()=>r('import',...swap(imp,'start','2026-02-30')),/Invalid calendar/);
+ await fails(()=>r('import',...swap(imp,'end',day(2))),/future/);
+ const invalid=write('invalid.csv',fs.readFileSync(file,'utf8').replace('200.00','abc'));
+ await fails(()=>r('import',...swap(imp,'file',invalid)),/nonnegative number/);
+ const duplicate=write('duplicate.csv',fs.readFileSync(file,'utf8').replace('000124','000123'));
+ await fails(()=>r('import',...swap(imp,'file',duplicate)),/Duplicate SKU/);
+ const badMap=write('mapping.json',JSON.stringify({sku:'Product Code'}));
+ await fails(()=>r('import',...swap(imp,'map',badMap)),/Mapping missing/);
+ const wrongMap=write('wrong-map.json',JSON.stringify({...JSON.parse(fs.readFileSync(map)),sku:'Missing'}));
+ await fails(()=>r('import',...swap(imp,'map',wrongMap)),/Mapped column missing/);
+ check((await r('imports',`--store=${s.id}`)).length,1);
+ // Force a database numeric overflow after creating a new product: the entire batch must roll back.
+ const overflow=write('overflow.csv',fs.readFileSync(file,'utf8').replace('000123','NEW-ROLLBACK').replace(',2,80',',2,1000000000'));
+ const later=swap(swap(swap(imp,'file',overflow),'start',day(0)),'end',day(0));
+ await fails(()=>r('import',...later),/overflow/);
+ check((await r('products')).some(p=>p.sku==='NEW-ROLLBACK'),false);
+ check((await r('imports',`--store=${s.id}`)).length,1);
+ // Optional missing metrics remain unknown; one currency never changes another store.
+ const minimal=write('minimal-map.json',JSON.stringify({sku:'Product Code',name:'Description',category:'Category',units:'Sales Units',sales_amount:'Sales Value'}));
+ const minimalArgs=swap(swap(swap(imp,'map',minimal),'start',day(0)),'end',day(0));
+ await r('import',...minimalArgs);
+ const latest=await r('space-review',`--store=${s.id}`);check(latest[0].width_mm,null);check(latest[0].sales_per_metre_amount,null);
+ check((await r('category-review',`--store=${s.id}`)).every(x=>x.currency==='NZD'),true);
+ check((await r('category-review','--store=DEMO-CBD')).every(x=>x.currency==='AUD'),true);
+
+ // Database rejection of append-only evidence and overlapping reporting windows.
+ await fails(()=>db.query('update decisions set rationale=$1 where id=$2',['rewrite',decision.id]),/append-only/);
+ await fails(()=>db.query('delete from observations'),/append-only/);
+ await fails(()=>db.query("insert into reports(store_id,period_start,period_end,currency,source_ref,source_sha256,mapping,row_count,actor) values($1,$2,$3,'NZD','test','test','{}',1,'test')",[s.id,day(-4),day(0)]),/overlap/);
+ // CSV structure and quoted data.
+ check(parseCsv('\uFEFFA,B\r\n"x,y","z\nq"\r\n'),[{A:'x,y',B:'z\nq'}]);
+ for(const raw of ['A,A\n1,2','A,B\n1','A\n"unclosed'])assert.throws(()=>parseCsv(raw));
+ for(const args of [['range-review','--stror=bad'],['range-review','--store'],['help','--json=false']])assert.throws(()=>parse(args));
+ const out=path.join(temp,'export.json');await r('export',`--file=${out}`);const exported=JSON.parse(fs.readFileSync(out));check(Object.keys(exported.records).length,8);await fails(()=>r('export',`--file=${out}`),/EEXIST/);
+ const draft=(await r('draft-range-review','--store=DEMO-CBD'))[0];assert(fs.readFileSync(draft.file,'utf8').includes('Private range review'));
+ const html=page({title:'<script>alert(1)</script>',sections:[{title:'Rows',html:table([{text:'<img src=x onerror=alert(1)>'}])}]});assert(!html.includes('<script>'));assert(html.includes('&lt;img'));
+ check([...used].sort(),Object.keys(commands).sort());
+ // Close PGlite before subprocess checks so no second process opens its files.
+ await db.close();
+ for(const [script,args] of [['assortment.mjs',['range-review','--store=DEMO-CBD','--json']],['view.mjs',[]],['docs.mjs',[]]]){
+  const p=spawnSync(process.execPath,[path.join(REPO_ROOT,'scripts',script),...args],{env:process.env,encoding:'utf8'});assert.equal(p.status,0,p.stderr);if(script==='assortment.mjs')check(JSON.parse(p.stdout).length,4);
+ }
+ const cli=spawnSync(process.execPath,[path.join(REPO_ROOT,'scripts/assortment.mjs'),'range-review','--store=Harbour Grocery'],{env:process.env,encoding:'utf8'});check(cli.status,1);assert(cli.stderr.includes('Candidates:'));
+ const doc=fs.readdirSync(path.join(temp,'docs-out/category-review')).map(x=>fs.readFileSync(path.join(temp,'docs-out/category-review',x),'utf8')).join('');assert(doc.includes('Harbour Grocery Demo'));assert(doc.includes('Review &amp; &lt;check&gt;'));
+ check(fs.existsSync(path.join(temp,'views/week.html')),true);assert(human([{amount:null}]).includes('unknown'));
+ console.log(`PASS: ${Object.keys(commands).length} CLI commands, ${assertions} counted checks plus failure and document assertions (${process.platform}, ${process.env.TEST_DATABASE_URL?'PostgreSQL':'PGlite'}).`);
+}finally{try{await db.close();}catch{}fs.rmSync(temp,{recursive:true,force:true});}

@@ -1,115 +1,102 @@
-<h1 align="center">Retail Assortment for Claude Code</h1>
+# Retail Assortment for Claude Code
 
-<p align="center">
-  <strong>The open-source retail assortment desk that is just a database and Claude Code.</strong>
-</p>
+Own the evidence behind the products you keep on the shelf. A database and one CLI for category managers reviewing store ranges, sales, gross margin, stock cover and follow-up. Built and optionally operated through **Omni by Enterprise DNA**.
 
-<p align="center">
-  Created by <a href="https://www.enterprisedna.co"><strong>Enterprise DNA</strong></a>. Free and open source. Works with Claude Code, Codex, OpenCode or Cursor.
-</p>
+## Three ways to own it
 
-<!-- three-doors -->
-<table align="center">
-  <tr>
-    <td align="center"><strong>Do it yourself</strong><br/>Clone it, run it, own it. Free, MIT.<br/><a href="#quick-start">Quick start</a></td>
-    <td align="center"><strong>We customise it</strong><br/>Your fields, your rules, your DotActiv data brought across.<br/><a href="https://enterprisedna.co/omni/book/?utm_source=github&utm_medium=readme&utm_campaign=dotactiv">Book a call</a></td>
-    <td align="center"><strong>We run it for you</strong><br/>Installed, connected and operated inside Omni. Setup fee, then a retainer.<br/><a href="https://enterprisedna.co/omni/instead-of/dotactiv?utm_source=github&utm_medium=readme&utm_campaign=dotactiv">How it works</a></td>
-  </tr>
-</table>
+| Do it yourself | We customise it | We run it for you |
+| --- | --- | --- |
+| Free, MIT-licensed source. Install locally and use Claude Code, Codex, OpenCode or Cursor. | Enterprise DNA maps your DotActiv exports and builds your fields, rules, reports and any needed visual tools. | Enterprise DNA installs, connects and operates your agreed system inside Omni. |
+| You manage access, backups and updates. | One setup fee, then a retainer. Scope and price are agreed with Sam. | One setup fee, then a retainer. No published service price. |
 
-<p align="center">
-  <a href="#what-is-this">What is this</a> &bull;
-  <a href="#why-no-front-end">Why no front end</a> &bull;
-  <a href="#quick-start">Quick start</a> &bull;
-  <a href="#the-commands">Commands</a> &bull;
-  <a href="#instead-of-dotactiv">Instead of DotActiv</a> &bull;
-  <a href="#want-it-installed-and-run-for-you">Installed for you</a> &bull;
-  <a href="#license">License</a>
-</p>
+[Get your version built](https://enterprisedna.co/omni/book?offer=replace-software&utm_source=github&utm_medium=readme&utm_campaign=dotactiv).
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Node-20+-339933?style=flat-square" alt="Node 20+" />
-  <img src="https://img.shields.io/badge/PostgreSQL-any-336791?style=flat-square" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/PGlite-embedded-3ecf8e?style=flat-square" alt="PGlite" />
-  <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="MIT License" />
-</p>
+## Why this exists
 
----
+DotActiv's [published pricing](https://dotactiv.com/pricing) lists Enterprise at $4,500 per licence per year, excluding local tax. Five licences imply $22,500 a year. That is a pricing scenario, not a verified customer invoice. The page does not identify the dollar currency, so no NZD, AUD or USD assumption is made here. Checked 3 November 2026.
 
-## What is this
+The free base owns the range-review record. It reads product reports, compares approved ranges with reported products, shows slow movers and unknown costs, and freezes evidence behind a range recommendation. It does not replace DotActiv's visual planogram editor, floor planning or image recognition. Enterprise DNA scopes any needed visual tools and connections before a switch.
 
-Retail Assortment for Claude Code does the job you pay DotActiv for, as a Postgres database and a set of agent commands. There is no web front end. You open the folder in [Claude Code](https://claude.com/claude-code) (or Codex, OpenCode, Cursor: see `AGENTS.md`) and ask for what you want in plain language. It runs the right query, and it can answer questions the DotActiv dashboard cannot.
+## Try the fictional demo
 
-<!-- TODO(author): the annual bill. One sentence: what a 10 to 50 person business typically pays DotActiv per year, all in, with a source. -->
-
-Want the same thing with a web front end, or built on a different stack? That is a customisation, and it is exactly what Enterprise DNA does: [book a call](https://enterprisedna.co/omni/book/?utm_source=github&utm_medium=readme&utm_campaign=dotactiv).
-
-<!-- TODO(author): two or three sentences on what this specific product covers and who it is for. -->
-
-## Why no front end
-
-- The front end was only ever there because the database was hard to talk to. That is no longer true.
-- Your data sits in plain Postgres tables you own. Any tool can read them. No export, no lock-in.
-- No seats, no tiers, no add-ons. Read [docs/why-no-front-end.md](docs/why-no-front-end.md) for the honest trade-offs too.
-
-## Quick start
-
-Sixty seconds, no database install (an embedded Postgres runs inside Node):
+Node 20 or newer. No database account or credentials needed.
 
 ```bash
 git clone https://github.com/Enterprise-DNA-OS/retail-assortment-for-claude-code.git
 cd retail-assortment-for-claude-code
 npm install
 npm run demo
+npm run assortment -- slow-movers --store=DEMO-CBD
+npm run view
+npm run docs
 ```
 
-Then open the folder in Claude Code and type a slash command. <!-- TODO(author): name the first command to try. -->
+The seed contains two fictional stores, five products, a slow coffee line, tea with no period sales, a missing range item, an off-range product, missing cost and a stale store report. Demo dates are relative to the first seed run. Seeding again adds no duplicate evidence and does not move that original window.
 
-### Use it with your own Postgres or Supabase
+Local storage is PGlite under .data/db. DATABASE_URL selects PostgreSQL. Run npm run migrate against a new database. The included SQL works with both adapters. Use an owner or migration role for setup and a deliberately configured least-privilege operator for shared deployment. Tables have row security enabled with no public policies. This repository is not a multi-tenant hosted application.
 
-Copy `.env.example` to `.env`, set `DATABASE_URL`, then `npm run migrate`. Same commands, shared data, no per-seat fee.
+## The working week
 
-## The commands
+1. `/range-review`: reconcile the approved range with the latest store report.
+2. `/category-review`: read sales and margin for like reporting windows.
+3. `/space-review`: compare sales per facing and per metre of reported frontage.
+4. `/slow-movers`: find high stock cover and products with stock but no period sales.
+5. `/margin-review`: separate known margin from missing cost.
 
-<!-- TODO(author): a table of the slash commands in .claude/commands and what each one does. -->
+`/weekly-review` combines the range, gaps and overdue work into a private draft. Thirty-two slash commands ship in [.claude/commands](.claude/commands), including `/customise`, `/new-view`, `/compliance` and the write recipes. The one CLI has 27 commands. Run `npm run assortment -- help` for the list. Every command accepts --json. Case-insensitive names and ID prefixes resolve records. Ambiguous matches list candidates and exit 1.
 
-| Command | What it does |
-|---|---|
-| `/...` | ... |
+## Bring the product report across
 
-## Instead of DotActiv
+DotActiv documents exporting a Product Report to Excel. Save the relevant sheet as UTF-8 CSV and map the actual column headings. The supplied map and CSV are illustrative, not a vendor-generated export. One report covers one store, one currency, one non-overlapping window and one row per SKU. [The switching guide](docs/replace-dotactiv.md) explains export preparation, mapping and reconciliation.
 
-<!-- TODO(author): how to bring data across from DotActiv; link docs/replace-dotactiv.md -->
-
-## Architecture
-
-```
-retail-assortment-for-claude-code/
-  CLAUDE.md                 how the operator wants this run (routing table + house rules)
-  AGENTS.md                 the same, for Codex / OpenCode / Cursor / Gemini CLI
-  .claude/commands/         the slash commands
-  scripts/                  the CLI the commands drive
-  scripts/lib/db.mjs        one adapter: DATABASE_URL (pg) or embedded PGlite
-  supabase/migrations/      plain SQL schema
-  supabase/seed.sql         demo data
-  docs/                     the thesis and the migration guide
+```bash
+npm run assortment -- import dotactiv --store=DEMO-CBD --file=examples/dotactiv-product-report.csv --map=examples/dotactiv-map.json --start=2026-10-01 --end=2026-10-07 --currency=AUD --expected-count=2 --source-ref="Fictional example" --actor="Demo operator" --dry-run
 ```
 
-## Built for coding agents
+Use your real file, dates, currency, source count and operator for real work. Remove --dry-run after checking the preview. Required fields are product code, name, category, units and sales value. Cost, stock, facings, width and brand are optional. Missing metrics remain unknown. Duplicate SKUs and overlapping periods are rejected. Exact repeats add nothing. Changed source evidence is never silently replaced. Products are registered by the import, but approved ranges are entered explicitly with set-range.
 
-The database, CLI and command recipes work with Claude Code, Codex, OpenCode or Cursor. Ask your coding agent for a new command and have it implement and test the change against the same records.
+## Ten questions to ask
 
-## Contributing
+These questions are answered by the shipped CLI. They are not claims that DotActiv cannot answer similar questions.
 
-Issues and pull requests are welcome. Keep the shape: plain SQL, a small CLI, a slash command per recurring job, no front end.
+1. Which approved products are missing from the latest store report? `gaps`
+2. Which reported products sit outside the active range? `gaps`
+3. Which products have stock but no sales in the reported period? `slow-movers`
+4. Which products exceed our chosen stock-cover threshold? `slow-movers --days=60`
+5. Which category margins are unknown because a cost is missing? `category-review`
+6. How much sales value does each reported facing support? `space-review`
+7. Which stores have stale reports or overdue review work? `attention`
+8. What did the numbers say when we recorded a range recommendation? `decisions`
+9. Which unit-price display checks lack evidence? `compliance`
+10. Which source file and mapping produced this report? `imports`
 
-## Want it installed and run for you?
+## Your first hour: ten things to ask for
 
-Enterprise DNA installs Retail Assortment for Claude Code for your business, migrates your DotActiv data, connects it to the rest of your tools, and runs it for you as part of **Omni**, our managed Command Center. One setup fee, then a monthly retainer.
+1. Set our business name, logo and colours in brand.json.
+2. Register our stores, clusters and actual currencies.
+3. Assign each store's review owner and next review date.
+4. Confirm whether a store is subject to Australian unit-pricing rules.
+5. Register the approved product range.
+6. Map a real product report and reconcile its row count.
+7. Compare imported sales and cost against the original report.
+8. Review missing products and unknown costs before deciding.
+9. Record a range recommendation with evidence and a follow-up owner.
+10. Render our category review pack and weekly view.
 
-- Book a call: [enterprisedna.co/omni/book](https://enterprisedna.co/omni/book/?offer=replace-software&utm_source=github&utm_medium=readme&utm_campaign=dotactiv)
-- Read more: [enterprisedna.co/omni/instead-of/dotactiv](https://enterprisedna.co/omni/instead-of/dotactiv?utm_source=github&utm_medium=readme&utm_campaign=dotactiv)
+## Calculations, paperwork and boundaries
 
-## License
+[Method](docs/method.md) explains the arithmetic and limits. Gross margin is sales minus cost. Stock days use observed period sales, not a forecast. Sales per metre uses facings times product width, not a physical planogram. Reports older than 14 days cannot support a new saved decision. These are review policies, not legal deadlines.
 
-MIT. Copyright (c) 2026 Enterprise DNA.
+`npm run view` produces private weekly and space-review HTML. `npm run docs` produces category review packs and saved decision records. Both use brand.json. `/draft-range-review` writes to drafts and never sends. [Why no front end](docs/why-no-front-end.md).
+
+`/compliance` flags missing or aged unit-price display evidence for explicitly in-scope stores. It does not inspect displays, verify the truth of an evidence reference or certify compliance. [Rules and official sources](docs/compliance.md).
+
+Typed operator names provide attribution, not authentication. Shared hosting requires identity enforcement, permissions, backup recovery tests and a retention policy. Keep customer data out of git. Reports, observations, decisions and events are append-only for normal application use, but the database owner can bypass these protections.
+
+`npm run assortment -- export --file=exports/assortment.json` writes all eight record types in one consistent read and refuses to overwrite files. Native database backups remain necessary. JSON restore is not shipped.
+
+## Validation
+
+`npm test` runs the migration, seed and all 27 CLI commands in temporary storage. It checks arithmetic, unknown values, import replay, malformed input, currency separation, overlapping windows, frozen decisions, ambiguous matches, escaped documents and private exports. Linux PGlite passed locally. The GitHub workflow also defines Windows and PostgreSQL checks. Their actual run status is recorded in [validation](docs/validation.md).
+
+[Selection and sources](docs/research.md). [Command index](docs/command-index.json). This project is independent of DotActiv and is not endorsed by it.

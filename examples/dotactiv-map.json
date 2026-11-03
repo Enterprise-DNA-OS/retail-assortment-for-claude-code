@@ -1,0 +1,12 @@
+{
+  "sku": "Product Code",
+  "name": "Description",
+  "category": "Category",
+  "brand": "Brand",
+  "units": "Sales Units",
+  "sales_amount": "Sales Value",
+  "cost_amount": "Cost Value",
+  "stock_units": "Stock Units",
+  "facings": "Facings",
+  "width_mm": "Width mm"
+}
